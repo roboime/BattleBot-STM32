@@ -37,12 +37,14 @@ SOFTWARE.
 #include "modules/recv.h"
 #include "modules/iwdg.h"
 
+#include "context/context.h"
+
 int main(void)
 {
 	// Enable all GPIO ports so the other functions don't need to
 	RCC->APB2ENR = RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPCEN |
 				   RCC_APB2ENR_AFIOEN;
-	RCC->APB1ENR = RCC_APB1ENR_TIM3EN;
+	RCC->APB1ENR = RCC_APB1ENR_TIM4EN;
 
 	// Initialize all primary modules
 	recv_init();
@@ -63,12 +65,14 @@ int main(void)
 	USART3->BRR = 625;
 	USART3->CR1 = USART_CR1_UE | USART_CR1_TE;
 
-	int fr = 0;
 	while (1)
 	{
-		recv_update();
+		if (recv_new_frame())
+		{
 
-		__WFI();
+		}
+
+		//__WFI();
 	}
 }
 

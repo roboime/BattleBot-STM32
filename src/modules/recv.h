@@ -14,6 +14,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+typedef struct
+{
+	int32_t in_low, in_high;
+	int32_t out_low, out_high;
+} normalization_params;
+
 /**
  * Initializes the receiver's module.
  */
@@ -40,6 +46,13 @@ void recv_update();
 uint32_t recv_num_channels();
 
 /**
+ * Sets the normalization parameters for a channel.
+ * \param [in] ch The number of the channel to set the normalization parameter
+ * \param [in] params The struct with the normalization parameters for this channel
+ */
+void recv_set_normalization_params(uint32_t ch, normalization_params* params);
+
+/**
  * The value received from each channel, already calibrated and normalized
  * from -65535 to 65535
  * \param [in] ch The number of the channel to get the value from
@@ -56,5 +69,10 @@ int32_t recv_raw_channel(uint32_t ch);
  * Check if the receiver is connected and transmiting frames
  */
 bool recv_is_connected();
+
+/**
+ * Check if a new frame is received
+ */
+bool recv_new_frame();
 
 #endif /* MODULES_RECV_H_ */

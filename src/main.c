@@ -39,6 +39,7 @@ SOFTWARE.
 #include "modules/mvmt.h"
 #include "modules/iwdg.h"
 #include "modules/i2c.h"
+#include "modules/usart.h"
 
 #include "context/context.h"
 
@@ -66,18 +67,12 @@ int main(void)
 	// Initialize the independent watchdog
 	iwdg_init();
 
+	// Initialize the communications modules
+	i2c_init();
+	usart_init();
+
 	// Enable reception of signal data
 	recv_enable();
-
-	i2c_init();
-
-	// Quick debugging feature
-	//RCC->APB1ENR |= RCC_APB1ENR_USART3EN;
-	//CONFIGURE_GPIO(GPIOB, 10, CFG_OUTPUT_ALTERNATE_PUSH_PULL_10MHZ);
-
-	// Configure USART for 57600 baud rate
-	//USART3->BRR = 625;
-	//USART3->CR1 = USART_CR1_UE | USART_CR1_TE;
 
 	int i = 0;
 	uint8_t byte = 0;
@@ -97,18 +92,6 @@ int main(void)
 
 		//__WFI();
 	}
-}
-
-// USART printf
-int _write(int fd, char *str, int len)
-{
-	for (int i = 0; i < len; i++)
-	{
-		while (!(USART3->SR & USART_SR_TXE));
-		USART3->DR = str[i];
-	}
-
-	return len;
 }
 
 void __assert_func(const char *file, int line, const char *func, const char *failedexpr)

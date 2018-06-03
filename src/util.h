@@ -8,6 +8,8 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
+#include "stm32f10x.h"
+
 #define CFG_INPUT_ANALOG (0UL|0UL)
 #define CFG_INPUT_FLOATING (0UL|4UL)
 #define CFG_INPUT_PULL_DOWN (0UL|8UL|0UL)
@@ -30,13 +32,17 @@
 
 #define CONFIGURE_GPIO(GPIOx, port, cfg) \
 	do { \
-		(&(GPIOx)->CRL)[((port)>>3)] &= ~(15UL << (4*((port)&7))); \
-		(&(GPIOx)->CRL)[((port)>>3)] |= (((cfg)&15UL) << (4*((port)&7))); \
+		__IO uint32_t* ptr = ((port)&8UL) ? &((GPIOx)->CRH) : &((GPIOx)->CRL); \
+		*ptr = (*ptr & ~(15UL << (((port)&7UL) << 2))) \
+		             | ((cfg)&15UL) << (((port)&7UL) << 2); \
 		if (((cfg)&15UL) == 8UL) \
 		{ \
 			if ((cfg)&16UL) (GPIOx)->ODR |= 1UL << (port); \
 			else (GPIOx)->ODR &= ~(1UL << (port)); \
 		} \
 	} while (0)
+
+#define BIT_BANDING_PERIPH(addr, bit) (((uint32_t*)PERIPH_BB_BASE)[8*((uint32_t)&(addr) - PERIPH_BASE) + bit])
+#define BIT_BANDING_SRAM(addr, bit) (((uint32_t*)SRAM_BB_BASE)[8*((uint32_t)&(addr) - SRAM_BASE) + bit])
 
 #endif /* UTIL_H_ */

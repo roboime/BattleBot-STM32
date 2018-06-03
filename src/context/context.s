@@ -12,45 +12,37 @@
 
 /*
 	context_init
-	r0: context
-	r1: entry
+	r0: void* stack_ptr
+	r1: uint32_t stack_size
+	r2: void (*entry)(context, void*)
+	r3: void* ud
 */
-	.section .text.context_init
+	.section .text.context_new
 	.align 2
-	.global context_init
+	.global context_new
 	.thumb_func
-	.type context_init,%function
-context_init:
-	str r4, [r0]
-	str r5, [r0, #4]
-	str r6, [r0, #8]
-	str r7, [r0, #12]
-	str r8, [r0, #16]
-	str r9, [r0, #20]
-	str r10, [r0, #24]
-	str r11, [r0, #28]
-	str sp, [r0, #32]
-	str lr, [r0, #36]
-
-	add r2, r0, #4*522
-	mov sp, r2
-	blx r1
-	sub r0, sp, #4*522
-
-	ldr r4, [r0]
-	ldr r5, [r0, #4]
-	ldr r6, [r0, #8]
-	ldr r7, [r0, #12]
-	ldr r8, [r0, #16]
-	ldr r9, [r0, #20]
-	ldr r10, [r0, #24]
-	ldr r11, [r0, #28]
-	ldr sp, [r0, #32]
-	ldr lr, [r0, #36]
-	mvn r3, #0
-	str r3, [r0, #32]
+	.type context_new,%function
+context_new:
+	add r0, r0, r1
+	mov r1, lr
+	ldr lr, =entry_point+1
+	stmfd r0!, {r3}
+	stmfd r0!, {r2}
+	stmfd r0!, {r4-r11, lr}
+	mov lr, r1
 	bx lr
-	.size context_init, .-context_init
+	.size context_new, .-context_new
+
+/*
+	entry_point
+*/
+entry_point:
+	pop {r2}
+	pop {r1}
+	blx r2
+	mov r3, #0
+	mov sp, r3
+	b _mid_ctx
 
 /*
 	context_switch
@@ -62,50 +54,17 @@ context_init:
 	.thumb_func
 	.type context_switch,%function
 context_switch:
-	ldr r3, [r0, #32]
-	mvns r3, r3
-	beq ret_pt
+	tst r0, r0
+	beq _ret_pt
 
-	mov r3, r4
-	ldr r4, [r0, #0]
-	str r3, [r0, #0]
+	push {r4-r11, lr}
+_mid_ctx:
+	mov r1, r0
+	mov r0, sp
+	mov sp, r1
+	pop {r4-r11, lr}
 
-	mov r3, r5
-	ldr r5, [r0, #4]
-	str r3, [r0, #4]
-
-	mov r3, r6
-	ldr r6, [r0, #8]
-	str r3, [r0, #8]
-
-	mov r3, r7
-	ldr r7, [r0, #12]
-	str r3, [r0, #12]
-
-	mov r3, r8
-	ldr r8, [r0, #16]
-	str r3, [r0, #16]
-
-	mov r3, r9
-	ldr r9, [r0, #20]
-	str r3, [r0, #20]
-
-	mov r3, r10
-	ldr r10, [r0, #24]
-	str r3, [r0, #24]
-
-	mov r3, r11
-	ldr r11, [r0, #28]
-	str r3, [r0, #28]
-
-	mov r3, sp
-	ldr sp, [r0, #32]
-	str r3, [r0, #32]
-
-	mov r3, lr
-	ldr lr, [r0, #36]
-	str r3, [r0, #36]
-
-ret_pt:
+_ret_pt:
 	bx lr
 	.size context_switch, .-context_switch
+

@@ -11,20 +11,18 @@
 /**
  * Struct that stores a context that can be saved and stored
  */
-typedef struct
-{
-	uint32_t r4, r5, r6, r7, r8, r9, r10, r11, sp, lr;
-	uint32_t stack[512];
-} context;
+typedef void* context;
+typedef context (*context_entry)(context, void*);
+#define STACKPTR __attribute__((aligned(8)))
 
 /**
  * Initializes a context variable
  */
-void context_init(context* ctx, void (*entry)(context*));
+context context_new(void* stack_ptr, uint32_t stack_size, context_entry entry, void* ud);
 
 /**
  * Switches in/out a context
  */
-void context_switch(context* ctx);
+context context_switch(context ctx);
 
 #endif /* CONTEXT_CONTEXT_H_ */

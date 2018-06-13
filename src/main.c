@@ -57,7 +57,7 @@ int main(void)
 
 	// Initialize all primary modules
 	recv_init();
-	mvmt_init();
+	//mvmt_init();
 
 	// Initialize the independent watchdog
 	//iwdg_init();

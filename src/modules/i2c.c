@@ -7,11 +7,12 @@
 
 #include "stm32f10x.h"
 
+#include "stdbool.h"
 #include "i2c.h"
 #include "context/context.h"
 #include "util.h"
 
-#define I2C_INTERRUPT_PRIORITY 2
+#define I2C_INTERRUPT_PRIORITY 3
 #define I2C_WAIT_UNTIL(cond) do { while (!(cond)) i2c_context_switch(); } while (0)
 
 static volatile context i2c_context = 0;
@@ -70,10 +71,10 @@ void i2c_init()
 
 static void i2c_context_switch()
 {
-	__set_BASEPRI(I2C_INTERRUPT_PRIORITY);
+	__disable_irq();
 	i2c_context = context_switch(i2c_context);
 	i2c_in_thread = !i2c_in_thread;
-	__set_BASEPRI(0);
+	__enable_irq();
 }
 
 /* I2C interrupt handler */
@@ -93,12 +94,12 @@ static context i2c_thread_starter(context ctx, void* ud)
 {
 	i2c_in_thread = 1;
 	i2c_context = ctx;
-	__set_BASEPRI(0);
+	__enable_irq();
 
 	struct i2c_ud *ctx_ud = ud;
 	ctx_ud->thread(ctx_ud->ud);
 
-	__set_BASEPRI(I2C_INTERRUPT_PRIORITY);
+	__disable_irq();
 	return i2c_context;
 }
 
@@ -108,7 +109,7 @@ void i2c_thread(void(*thread)(void*), void* ud)
 	static struct i2c_ud ctx_ud;
 	ctx_ud.thread = thread;
 	ctx_ud.ud = ud;
-	__set_BASEPRI(I2C_INTERRUPT_PRIORITY);
+	__disable_irq();
 	i2c_context = context_new(i2c_stack, sizeof(i2c_stack), i2c_thread_starter, &ctx_ud);
 	i2c_context_switch();
 }

@@ -9,6 +9,7 @@
 #define UTIL_H_
 
 #include "stm32f10x.h"
+#include "core_cm3.h"
 
 #define CFG_INPUT_ANALOG (0UL|0UL)
 #define CFG_INPUT_FLOATING (0UL|4UL)
@@ -44,5 +45,7 @@
 
 #define BIT_BANDING_PERIPH(addr, bit) (((uint32_t*)PERIPH_BB_BASE)[8*((uint32_t)&(addr) - PERIPH_BASE) + bit])
 #define BIT_BANDING_SRAM(addr, bit) (((uint32_t*)SRAM_BB_BASE)[8*((uint32_t)&(addr) - SRAM_BASE) + bit])
+
+#define SET_PRIORITY(prio) __set_BASEPRI((unsigned long)(prio) << (8 - __NVIC_PRIO_BITS))
 
 #endif /* UTIL_H_ */

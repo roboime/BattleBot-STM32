@@ -16,8 +16,8 @@
 
 typedef struct
 {
-	int32_t in_low, in_high;
-	int32_t out_low, out_high;
+	int32_t in_low, in_mid, in_high;
+	int32_t out_low, out_mid, out_high;
 } normalization_params;
 
 /**
@@ -50,7 +50,7 @@ uint32_t recv_num_channels();
  * \param [in] ch The number of the channel to set the normalization parameter
  * \param [in] params The struct with the normalization parameters for this channel
  */
-void recv_set_normalization_params(uint32_t ch, normalization_params* params);
+void recv_set_normalization_params(uint32_t ch, const normalization_params* params);
 
 /**
  * The value received from each channel, already calibrated and normalized

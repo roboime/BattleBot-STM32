@@ -43,51 +43,53 @@ SOFTWARE.
 
 #include "context/context.h"
 
-void mpu_thread(void* ud)
-{
-	const uint8_t *byte = ud;
-	i2c_write(0x08, byte, sizeof(uint8_t));
-
-	uint8_t res[12];
-	i2c_read(0x08, res, 12*sizeof(uint8_t));
-	res[0] = res[0];
-}
+const normalization_params vert_params = { 2049, 3009, 4032, 195, 0, -195 },
+	hor_params = { 2191, 3016, 3768, -195, 0, 195 };
 
 int main(void)
 {
 	// Enable all GPIO ports so the other functions don't need to
 	RCC->APB2ENR = RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPCEN |
 				   RCC_APB2ENR_AFIOEN;
-	RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+	//RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+
+	CONFIGURE_GPIO(GPIOC, 13, CFG_OUTPUT_GENERAL_PUSH_PULL_10MHZ);
 
 	// Initialize all primary modules
 	recv_init();
 	mvmt_init();
 
 	// Initialize the independent watchdog
-	iwdg_init();
+	//iwdg_init();
 
 	// Initialize the communications modules
-	i2c_init();
-	usart_init();
+	//i2c_init();
+	//usart_init();
+
+	// Pass the normalization parameters
+	recv_set_normalization_params(2, &vert_params);
+	recv_set_normalization_params(3, &hor_params);
 
 	// Enable reception of signal data
 	recv_enable();
 
 	int i = 0;
-	uint8_t byte = 0;
+
 	while (1)
 	{
 		if (recv_new_frame())
 		{
-			iwdg_reset();
-			recv_update();
+			//iwdg_reset();
+			//recv_update();
 
-			int x = recv_channel(0);
-			int y = recv_channel(1);
+			int y = recv_channel(2);
+			int x = recv_channel(3);
 
 			mvmt_control(MOTOR_LEFT, y-x);
 			mvmt_control(MOTOR_RIGHT, y+x);
+
+			i++;
+			if (i % 10 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
 		}
 
 		//__WFI();

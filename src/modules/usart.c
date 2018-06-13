@@ -7,11 +7,12 @@
 
 #include "stm32f10x.h"
 
+#include <stdbool.h>
 #include "usart.h"
 #include "context/context.h"
 #include "util.h"
 
-#define USART_INTERRUPT_PRIORITY 3
+#define USART_INTERRUPT_PRIORITY 4
 #define USART_WAIT_UNTIL(cond) do { while (!(cond)) usart_context_switch(); } while (0)
 
 static volatile context usart_context = 0;
@@ -29,13 +30,17 @@ void usart_init()
     CONFIGURE_GPIO(GPIOB, 11, CFG_INPUT_FLOATING);
 
     /* Configure the USART peripheral */
-    /* Set a baud rate of 400000 Hz */
-    /* 36 MHz / 400000 Hz = 90 */
-    USART3->BRR = 90;
+    /* Set a baud rate of 800 kHz */
+    /* 36 MHz / 800 kHz = 45 */
+    USART3->BRR = 45;
 
-    /* 2 stop bits */
-    USART3->CR2 = 2 << 12;
+    // debug, remove me
+    USART3->BRR = 625;
 
+    /* 1 stop bit */
+    USART3->CR2 = 0;
+
+    USART3->SR = ~USART_SR_TC;
     /* Enable the USART hardware, interrupt on transmission complete */
     USART3->CR1 = USART_CR1_TCIE | USART_CR1_UE;
 
@@ -62,10 +67,10 @@ void usart_init()
 
 static void usart_context_switch()
 {
-	__set_BASEPRI(USART_INTERRUPT_PRIORITY);
+	__disable_irq();
 	usart_context = context_switch(usart_context);
 	usart_in_thread = !usart_in_thread;
-	__set_BASEPRI(0);
+	__enable_irq();
 }
 
 /* USART interrupt handler */
@@ -85,12 +90,12 @@ static context usart_thread_starter(context ctx, void* ud)
 {
 	usart_in_thread = 1;
 	usart_context = ctx;
-	__set_BASEPRI(0);
+	__enable_irq();
 
 	struct usart_ud *ctx_ud = ud;
 	ctx_ud->thread(ctx_ud->ud);
 
-	__set_BASEPRI(USART_INTERRUPT_PRIORITY);
+	__disable_irq();
 	return usart_context;
 }
 
@@ -100,7 +105,7 @@ void usart_thread(void(*thread)(void*), void* ud)
 	static struct usart_ud ctx_ud;
 	ctx_ud.thread = thread;
 	ctx_ud.ud = ud;
-	__set_BASEPRI(USART_INTERRUPT_PRIORITY);
+	__disable_irq();
 	usart_context = context_new(usart_stack, sizeof(usart_stack), usart_thread_starter, &ctx_ud);
 	usart_context_switch();
 }

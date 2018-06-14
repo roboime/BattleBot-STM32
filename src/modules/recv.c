@@ -15,14 +15,15 @@
 
 #define CHANNELS 6
 #define QUEUE_SIZE 4
+#define NUM_SAMPLES 5
 #define MAX_DELAY 5
 
 #if CHANNELS > 8
 #error A maximum of 8 channels is supported
 #endif
 
-// bit band address for TIM2->SR & TIM2_SR_CC2P
-#define RECV_POLARITY_BIT BIT_BANDING_PERIPH(TIM2->CCER, 5)
+// bit band address for TIM4->CCER & TIM_CCER_CC2P
+#define RECV_POLARITY_BIT BIT_BANDING_PERIPH(TIM4->CCER, 5)
 
 // receiver ISR priority (lower is higher priority)
 #define RECV_ISR_PRIORITY 1
@@ -46,7 +47,9 @@ static volatile uint16_t isr_ch_queue[QUEUE_SIZE][CHANNELS];
 static volatile uint16_t num_delay;
 
 /* Variables for the main thread, for the median filter */
-static uint16_t ch_vals[CHANNELS];
+static uint16_t ch_val_window[CHANNELS][NUM_SAMPLES];
+static uint16_t ch_cur_order[CHANNELS][NUM_SAMPLES];
+static uint16_t cur_j;
 
 static normalization_params normalization_parameters[CHANNELS];
 
@@ -83,7 +86,7 @@ void recv_init()
 	TIM4->EGR = TIM_EGR_UG;
 
 	/* TIM4 channel 2 is linked to the receiver port, so we must set it. */
-	TIM4->CCMR1 = TIM_CCMR1_CC2S_0; // configure port 1 as input
+	TIM4->CCMR1 = TIM_CCMR1_CC2S_0 | (11 << 12); // configure port 1 as input
 
 	/* Configure interrupt for channel 1 and update on TIM4 */
 	TIM4->DIER |= TIM_DIER_CC2IE;
@@ -107,7 +110,11 @@ void recv_init()
 		for (uint32_t k = 0; k < QUEUE_SIZE; k++)
 			isr_ch_queue[i][k] = 0;
 
-		ch_vals[i] = 0;
+		for (uint32_t j = 0; j < NUM_SAMPLES; j++)
+		{
+			ch_val_window[i][j] = 0;
+			ch_cur_order[i][j] = j;
+		}
 	}
 
 	num_delay = 0;
@@ -138,7 +145,8 @@ void TIM4_IRQHandler()
 		{
 			/* Tick the mux */
 			cur_step++;
-			internal_mux_advance();
+			if (cur_step != CHANNELS)
+				internal_mux_advance();
 		}
 		else /* Reset mux */
 		{
@@ -150,12 +158,12 @@ void TIM4_IRQHandler()
 			{
 				/* Watch for overflow */
 				if (temp_timer_readings[i+1] >= temp_timer_readings[i])
-					isr_ch_queue[i][cur_k] = temp_timer_readings[i+1] - temp_timer_readings[i];
-				else isr_ch_queue[i][cur_k] = 40000 - temp_timer_readings[i] + temp_timer_readings[i+1];
+					isr_ch_queue[cur_k][i] = temp_timer_readings[i+1] - temp_timer_readings[i];
+				else isr_ch_queue[cur_k][i] = 40000 - temp_timer_readings[i] + temp_timer_readings[i+1];
 			}
 
 			/* Tick the queue number */
-			cur_k = (cur_k+1) % QUEUE_SIZE;
+			cur_k = (cur_k+1)&3;
 
 			/* And reset the disconnection counter */
 			num_delay = 0;
@@ -170,19 +178,55 @@ void recv_update()
 	__disable_irq();
 	/* Tick the disconnection detector */
 	num_delay++;
-	if (num_delay > MAX_DELAY)
-	{
+	if (num_delay >= MAX_DELAY)
 		num_delay = MAX_DELAY;
-		/* Reset the interrupt state */
-		cur_step = 0;
-		internal_mux_reset();
-	}
 	__enable_irq();
 
 	/* Transfer the values fetched from the ISRs to the value window */
-	uint32_t prev_k = (cur_k + QUEUE_SIZE-1) % QUEUE_SIZE;
+	uint32_t prev_k = (cur_k+3)&3;
+	uint16_t temp_ch_vals[CHANNELS];
+
+	/* Discard any stray "wrong" frames */
 	for (uint32_t i = 0; i < CHANNELS; i++)
-		ch_vals[i] = isr_ch_queue[prev_k][i];
+	{
+		temp_ch_vals[i] = isr_ch_queue[prev_k][i];
+		//if (temp_ch_vals[i] < 1800 || temp_ch_vals[i] > 4200) return;
+	}
+
+	/* Transfer the values */
+	for (uint32_t i = 0; i < CHANNELS; i++)
+		ch_val_window[i][cur_j] = temp_ch_vals[i];
+
+
+	/* Bubblesort the samples */
+	for (uint32_t i = 0; i < CHANNELS; i++)
+	{
+		/* Find the index of the current reading */
+		uint32_t k = 0;
+		for (; k < NUM_SAMPLES; k++) if (ch_cur_order[i][k] == cur_j) break;
+
+		/* Try to bubble the reading backward */
+		while (k > 0 && ch_val_window[i][ch_cur_order[i][k]] < ch_val_window[i][ch_cur_order[i][k-1]])
+		{
+			uint16_t tmp = ch_cur_order[i][k];
+			ch_cur_order[i][k] = ch_cur_order[i][k-1];
+			ch_cur_order[i][k-1] = tmp;
+			k--;
+		}
+
+		/* Try to bubble the reading forward */
+		while (k < NUM_SAMPLES-1 && ch_val_window[i][ch_cur_order[i][k]] > ch_val_window[i][ch_cur_order[i][k+1]])
+		{
+			uint16_t tmp = ch_cur_order[i][k];
+			ch_cur_order[i][k] = ch_cur_order[i][k+1];
+			ch_cur_order[i][k+1] = tmp;
+			k++;
+		}
+	}
+
+	/* update the window position */
+	cur_j++;
+	if (cur_j == NUM_SAMPLES) cur_j = 0;
 }
 
 uint32_t recv_num_channels()
@@ -198,7 +242,7 @@ void recv_set_normalization_params(uint32_t ch, const normalization_params* para
 int32_t recv_channel(uint32_t ch)
 {
 	int32_t v = recv_raw_channel(ch);
-	if (v == 0) return INT32_MIN;
+	if (v == 0) return 0;
 
 	const normalization_params* pr = normalization_parameters+ch;
 	if (v >= pr->in_high) return pr->out_high;
@@ -210,7 +254,7 @@ int32_t recv_channel(uint32_t ch)
 
 int32_t recv_raw_channel(uint32_t ch)
 {
-	return recv_is_connected() ? ch_vals[ch] : 0;
+	return recv_is_connected() ? ch_val_window[ch][ch_cur_order[ch][NUM_SAMPLES/2]] : 0;
 }
 
 void recv_enable()

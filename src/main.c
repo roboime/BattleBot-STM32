@@ -46,12 +46,22 @@ SOFTWARE.
 const normalization_params vert_params = { 2049, 3009, 4032, 195, 0, -195 },
 	hor_params = { 2191, 3016, 3768, -195, 0, 195 };
 
+void debug_thread(void* ud)
+{
+	char buffer[100];
+	int size = sprintf(buffer, "%d %d %d %d %d %d\n",
+		(int)recv_raw_channel(0), (int)recv_raw_channel(1), (int)recv_raw_channel(2),
+		(int)recv_raw_channel(3), (int)recv_raw_channel(4), (int)recv_raw_channel(5));
+
+	usart_write(buffer, size);
+}
+
 int main(void)
 {
 	// Enable all GPIO ports so the other functions don't need to
 	RCC->APB2ENR = RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPCEN |
 				   RCC_APB2ENR_AFIOEN;
-	//RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+	RCC->AHBENR |= RCC_AHBENR_DMA1EN;
 
 	CONFIGURE_GPIO(GPIOC, 13, CFG_OUTPUT_GENERAL_PUSH_PULL_10MHZ);
 
@@ -80,7 +90,7 @@ int main(void)
 		if (recv_new_frame())
 		{
 			//iwdg_reset();
-			//recv_update();
+			recv_update();
 
 			int y = recv_channel(2);
 			int x = recv_channel(3);
@@ -90,6 +100,8 @@ int main(void)
 
 			i++;
 			if (i % 10 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
+
+			//usart_thread(debug_thread, &i);
 		}
 
 		//__WFI();

@@ -39,6 +39,9 @@ void mvmt_control(int motor, int p)
     __IO uint16_t *cha = motor == MOTOR_LEFT ? &TIM1->CCR1 : &TIM1->CCR3;
     __IO uint16_t *chb = motor == MOTOR_LEFT ? &TIM1->CCR2 : &TIM1->CCR4;
 
+    if (p>195) p = 195;
+    else if (p<-195) p = -195;
+
     if(p>0)
     {
         *cha = p;

@@ -34,3 +34,4 @@
 
 # Everything in the debug folder
 Debug/
+.settings

@@ -40,21 +40,12 @@ SOFTWARE.
 #include "modules/iwdg.h"
 #include "modules/i2c.h"
 #include "modules/usart.h"
+#include "modules/esp.h"
 
 #include "context/context.h"
 
 const normalization_params vert_params = { 2049, 3009, 4032, 195, 0, -195 },
 	hor_params = { 2191, 3016, 3768, -195, 0, 195 };
-
-void debug_thread(void* ud)
-{
-	char buffer[100];
-	int size = sprintf(buffer, "%d %d %d %d %d %d\n",
-		(int)recv_raw_channel(0), (int)recv_raw_channel(1), (int)recv_raw_channel(2),
-		(int)recv_raw_channel(3), (int)recv_raw_channel(4), (int)recv_raw_channel(5));
-
-	usart_write(buffer, size);
-}
 
 int main(void)
 {
@@ -74,7 +65,8 @@ int main(void)
 
 	// Initialize the communications modules
 	//i2c_init();
-	//usart_init();
+	usart_init();
+	esp_init();
 
 	// Pass the normalization parameters
 	recv_set_normalization_params(2, &vert_params);
@@ -99,11 +91,17 @@ int main(void)
 			mvmt_control(MOTOR_RIGHT, y+x);
 
 			i++;
-			if (i % 10 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
+			if (i % 16 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
 
-			//usart_thread(debug_thread, &i);
+			esp_recv_commands();
+			while (esp_new_commands())
+			{
+				uint8_t buffer[160];
+				uint32_t size = esp_next_command(buffer);
+
+				if (size >= 1 && buffer[0] == 2) GPIOC->ODR ^= GPIO_ODR_ODR13;
+			}
 		}
-
 		//__WFI();
 	}
 }

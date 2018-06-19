@@ -59,6 +59,7 @@ SECTIONS
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
   } >FLASH
+  
 
   /* The program code and other data goes into FLASH */
   .text :
@@ -112,6 +113,18 @@ SECTIONS
     KEEP (*(SORT(.fini_array.*)))
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
+  } >FLASH
+
+  /* Bootloader can replace RAM */
+  .bootloader.text :
+  {
+  	/* Go to the last page */
+  	. = ORIGIN(FLASH) + LENGTH(FLASH) - 1024;
+  	__bootloader_begin = .;
+  	KEEP(*bootloader.o(.bootloader.text))
+  	KEEP(*bootloader.o(.bootloader.text*))
+  	. = ALIGN(1024);
+  	__bootloader_end = .;
   } >FLASH
 
   /* used by the startup to initialize data */

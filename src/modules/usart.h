@@ -16,23 +16,36 @@
 void usart_init();
 
 /**
- * Starts the coroutine that will handle the USART communications.
- * Every USART communication method MUST happen inside a function
- * that was called with this function
+ * Returns the number of bytes available to read
  */
-void usart_thread(void(*thread)(void*), void* ud);
+uint32_t usart_read_available();
 
 /**
  * Reads from the opposing microcontroller using the USART bus.
- * MUST be called inside an usart_thread.
+ * Returns the number of bytes read
  */
-uint8_t usart_read(void* out, uint32_t size);
+uint32_t usart_read(void* out, uint32_t size);
+
+/**
+ * Reads a single byte from the USART bus. Returns full -1 if no byte is available
+ */
+uint32_t usart_read_byte();
+
+/**
+ * Returns the number of bytes that can be written
+ */
+uint32_t usart_write_possible();
 
 /**
  * Writes to the opposing microcontroller using the USART bus.
- * MUST be called inside an usart_thread.
+ * Returns the number of bytes actually written
  */
-uint8_t usart_write(const void* in, uint32_t size);
+uint32_t usart_write(const void* in, uint32_t size);
+
+/**
+ * Writes a single byte to the USART bus. Returns 1 if the write was successful
+ */
+uint8_t usart_write_byte(uint8_t byte);
 
 #define USART_READ_VAR(v) usart_read(&(v), sizeof(v))
 #define USART_WRITE_VAR(v) usart_write(&(v), sizeof(v))

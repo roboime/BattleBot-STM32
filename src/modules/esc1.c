@@ -21,16 +21,16 @@ void esc1_update()
         switch(calibration_state)
         {
             case 0:
-                GPIOB->ODR &= ~GPIO_ODR_ODR1;  //turn off ESC
+                GPIOB->ODR &= ~GPIO_ODR_ODR8;  //turn off ESC
                 break;
 
             case 25:                           //0.02 sec * 25 = 0.5 sec
-                GPIOA->ODR |= GPIO_ODR_ODR12;  //turn on SET
-                GPIOB->ODR |= GPIO_ODR_ODR1;   //turn on ESC
+                GPIOB->ODR |= GPIO_ODR_ODR9;  //turn on SET
+                GPIOB->ODR |= GPIO_ODR_ODR8;   //turn on ESC
                 break;
 
             case 150:                          //0.02sec * 125 = 2.5 sec
-                GPIOA->ODR &= ~GPIO_ODR_ODR12; //turn off set
+                GPIOB->ODR &= ~GPIO_ODR_ODR9; //turn off set
                 TIM4->CCR1 = PWM_HIGH;
                 break;
 
@@ -43,11 +43,11 @@ void esc1_update()
                 break;
 
             case 1350:                         //0.02sec * 400 = 8.0 sec
-                GPIOB->ODR &= ~GPIO_ODR_ODR1;  //turn off ESC
+                GPIOB->ODR &= ~GPIO_ODR_ODR8;  //turn off ESC
                 break;
 
             case 1375:
-                GPIOB->ODR |= GPIO_ODR_ODR1;   //turn on ESC
+                GPIOB->ODR |= GPIO_ODR_ODR8;   //turn on ESC
                 calibration_state = -1;
                 danger_esc1 = 0;
         }

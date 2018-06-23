@@ -29,7 +29,7 @@
 #define SEL_MUX_BIT_2 BIT_BANDING_PERIPH(GPIOA->ODR, 12)
 
 // receiver ISR priority (lower is higher priority)
-#define RECV_ISR_PRIORITY 1
+#define RECV_ISR_PRIORITY 3
 
 /* Variables to store persistent but temporary data inside the interrupts */
 static uint16_t cur_step, cur_k;

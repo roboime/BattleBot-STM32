@@ -12,7 +12,7 @@
 #include "usart.h"
 #include "util.h"
 
-#define USART_INTERRUPT_PRIORITY 4
+#define USART_INTERRUPT_PRIORITY 2
 #define USART_WAIT_UNTIL(cond) do { while (!(cond)) usart_context_switch(); } while (0)
 
 static char read_queue[512], write_queue[512];
@@ -51,11 +51,11 @@ void usart_init()
     USART3->CR1 = USART_CR1_RE | USART_CR1_TE | USART_CR1_UE;
 
 	/* Configure the DMA channel 2 for transmission */
-	DMA1_Channel2->CCR = DMA_CCR2_MINC | DMA_CCR2_DIR | DMA_CCR2_TCIE | (3 << 12);
+	DMA1_Channel2->CCR = DMA_CCR2_MINC | DMA_CCR2_DIR | DMA_CCR2_TCIE | (2 << 12);
 	DMA1_Channel2->CPAR = (uint32_t)&USART3->DR;
 
 	/* Configure the DMA channel 3 for reception */
-	DMA1_Channel3->CCR = DMA_CCR3_MINC | DMA_CCR3_CIRC | DMA_CCR3_TCIE | (3 << 12);
+	DMA1_Channel3->CCR = DMA_CCR3_MINC | DMA_CCR3_CIRC | DMA_CCR3_TCIE | (2 << 12);
 	DMA1_Channel3->CPAR = (uint32_t)&USART3->DR;
 	DMA1_Channel3->CMAR = (uint32_t)read_queue;
 	DMA1_Channel3->CNDTR = sizeof(read_queue);

@@ -38,7 +38,7 @@ SOFTWARE.
 #include "modules/recv.h"
 #include "modules/mvmt.h"
 #include "modules/iwdg.h"
-#include "modules/i2c.h"
+#include "modules/spi.h"
 #include "modules/usart.h"
 #include "modules/esp.h"
 

@@ -17,21 +17,21 @@ void adc_int()
     RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;                             //habilita o clock do ADC no APB2
 
 
-    ADC1->CR1 = ADC_CR1_SCAN;										//configura o periférico adc para modo de varredura
+    ADC1->CR1 = ADC_CR1_SCAN;										//configura o periferico ADC para modo de varredura
     ADC1->CR2 = ADC_CR2_DMA | (7 << 17);							//habilita o DMA
 
 
     ADC1->SQR3 = 0 | (1 << 5) | (2 << 10) | (3 << 15) | (4 << 20) | (5 << 25);
-    ADC1->SQR2 = 6 | (7 << 5) | (8 << 10);
-    ADC1->SQR1 = 9 << 20;											//define como 9 o número de conversões
+    ADC1->SQR2 = 6 | (7 << 5) ;
+    ADC1->SQR1 = 8 << 20;											//define como 8 o numero de conversoes
 
     ADC1->CR2 |= ADC_CR2_ADON;
 
-    for(uint32_t i = 0; i < 12; i++) asm volatile(“”);              //garante os 12 ciclos de espera para iniciar a calibração
+    for(uint32_t i = 0; i < 12; i++) asm volatile(“”);              //garante os 12 ciclos de espera para iniciar a calibracao
 
-    ADC1->CR2 |= ADC_CR2_CAL;                                       //inicia a calibração
+    ADC1->CR2 |= ADC_CR2_CAL;                                       //inicia a calibracao
 
-    while(ADC1->CR2 & ADC_CR2_CAL){}                                //espera a calibração acabar
+    while(ADC1->CR2 & ADC_CR2_CAL){}                                //espera a calibracao terminar
 
 
     DMA1_Channel1->CCR  =  DMA_CCR1_MINC | DMA_CCR1_TCIE | (3 << 12) | (1<<8) | (1<<10);

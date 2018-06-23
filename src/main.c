@@ -65,8 +65,8 @@ int main(void)
 
 	// Initialize the communications modules
 	//i2c_init();
-	usart_init();
-	esp_init();
+	//usart_init();
+	//esp_init();
 
 	// Pass the normalization parameters
 	recv_set_normalization_params(2, &vert_params);
@@ -85,22 +85,22 @@ int main(void)
 			recv_update();
 
 			int y = recv_channel(2);
-			int x = recv_channel(3);
+			int x = recv_channel(3)*2/7;
 
-			mvmt_control(MOTOR_LEFT, y-x);
-			mvmt_control(MOTOR_RIGHT, y+x);
+			mvmt_control(MOTOR_LEFT, y+x);
+			mvmt_control(MOTOR_RIGHT, y-x);
 
 			i++;
 			if (i % 16 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
 
-			esp_recv_commands();
+			/*esp_recv_commands();
 			while (esp_new_commands())
 			{
 				uint8_t buffer[160];
 				uint32_t size = esp_next_command(buffer);
 
 				if (size >= 1 && buffer[0] == 2) GPIOC->ODR ^= GPIO_ODR_ODR13;
-			}
+			}*/
 		}
 		//__WFI();
 	}

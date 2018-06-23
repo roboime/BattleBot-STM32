@@ -24,22 +24,15 @@
 
 // bit band address for TIM4->CCER & TIM_CCER_CC2P
 #define RECV_POLARITY_BIT BIT_BANDING_PERIPH(TIM4->CCER, 5)
+#define SEL_MUX_BIT_0 BIT_BANDING_PERIPH(GPIOB->ODR, 0)
+#define SEL_MUX_BIT_1 BIT_BANDING_PERIPH(GPIOB->ODR, 1)
+#define SEL_MUX_BIT_2 BIT_BANDING_PERIPH(GPIOA->ODR, 12)
 
 // receiver ISR priority (lower is higher priority)
 #define RECV_ISR_PRIORITY 1
 
-// mux select port
-#define RECV_MUX_PORT 13
-
-/* optimization details: we advance the mux data by "ticking" a variable in order
-   to set the BSRR register; this is done to recude the amound of reads and writes
-   to the registers */
-#define MUX_ADVANCE_INIT ((0<<RECV_MUX_PORT) + (7<<(16+RECV_MUX_PORT)))
-#define MUX_ADVANCE_BASE ((1<<RECV_MUX_PORT) - (1<<(16+RECV_MUX_PORT)))
-
 /* Variables to store persistent but temporary data inside the interrupts */
 static uint16_t cur_step, cur_k;
-static uint32_t cur_mux_advance;
 static uint16_t temp_timer_readings[CHANNELS+1];
 
 /* Variables which act on the boundary between the ISRs and the main thread */
@@ -54,15 +47,12 @@ static uint16_t cur_j;
 static normalization_params normalization_parameters[CHANNELS];
 
 /* Mux selection */
-/* The mux is on ports PB13-PB15. We treat them as a "single" 3-bit selector. */
-inline static void internal_mux_reset()
+/* The mux is on ports PA12, PB1, PB0. It is not possible to "treat" the channel as a single 3-bit. */
+inline static void internal_mux_select(uint32_t channel)
 {
-	GPIOB->BSRR = cur_mux_advance = MUX_ADVANCE_INIT;
-}
-
-inline static void internal_mux_advance()
-{
-	GPIOB->BSRR = cur_mux_advance += MUX_ADVANCE_BASE;
+	SEL_MUX_BIT_0 = channel;
+	SEL_MUX_BIT_1 = channel >> 1;
+	SEL_MUX_BIT_2 = channel >> 2;
 }
 
 /* Initialization routine */
@@ -70,10 +60,10 @@ void recv_init()
 {
 	/* Configure the IO ports required for the functionality to work
 	 * and that will be connected to the receiver channels */
-	CONFIGURE_GPIO(GPIOB, 7, CFG_INPUT_FLOATING); // TIM4 ch2: receiver channel on mux
-	CONFIGURE_GPIO(GPIOB, 13, CFG_OUTPUT_GENERAL_OPEN_DRAIN_10MHZ); // mux selection port 0
-	CONFIGURE_GPIO(GPIOB, 14, CFG_OUTPUT_GENERAL_OPEN_DRAIN_10MHZ); // mux selection port 1
-	CONFIGURE_GPIO(GPIOB, 15, CFG_OUTPUT_GENERAL_OPEN_DRAIN_10MHZ); // mux selection port 2
+	CONFIGURE_GPIO(GPIOB,  7, CFG_INPUT_FLOATING); // TIM4 ch2: receiver channel on mux
+	CONFIGURE_GPIO(GPIOB,  0, CFG_OUTPUT_GENERAL_OPEN_DRAIN_10MHZ); // mux selection port 0
+	CONFIGURE_GPIO(GPIOB,  1, CFG_OUTPUT_GENERAL_OPEN_DRAIN_10MHZ); // mux selection port 1
+	CONFIGURE_GPIO(GPIOA, 12, CFG_OUTPUT_GENERAL_OPEN_DRAIN_10MHZ); // mux selection port 2
 
 	/* Ensure TIM4 is enabled on the RCC */
 	RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
@@ -103,7 +93,7 @@ void recv_init()
 	cur_k = 0;
 
 	/* Tick the mux to channel zero */
-	internal_mux_reset();
+	internal_mux_select(0);
 
 	for (uint32_t i = 0; i < CHANNELS; i++)
 	{
@@ -146,12 +136,12 @@ void TIM4_IRQHandler()
 			/* Tick the mux */
 			cur_step++;
 			if (cur_step != CHANNELS)
-				internal_mux_advance();
+				internal_mux_select(cur_step);
 		}
 		else /* Reset mux */
 		{
 			cur_step = 0;
-			internal_mux_reset();
+			internal_mux_select(0);
 
 			/* Here, we also transfer to the definitive variables */
 			for (uint32_t i = 0; i < CHANNELS; i++)

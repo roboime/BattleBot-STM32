@@ -72,7 +72,7 @@ void esc1_update()
             }
 
         }
-        TIM4->CCR1 = 3000 + (!danger_esc1 || (cur_p>10) ? cur_p : 0);
+        TIM4->CCR1 = 3072 + (!danger_esc1 || (cur_p>10) ? cur_p : 0);
     }
 
 }

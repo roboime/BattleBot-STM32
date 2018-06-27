@@ -20,4 +20,6 @@ void esc_calibration_routine();
 
 int32_t esc_calibration_done();
 
+int32_t esc_raw_output();
+
 #endif /* MODULES_ESC_H_ */

@@ -56,20 +56,11 @@ uint32_t adc_get_voltage(uint32_t cell)
 {
 	switch(cell)
 	{
-		case 1:
-			return voltage_perm[0];
-			break;
-		case 2:
-			return 2*voltage_perm[1]-voltage_perm[0];
-			break;
-		case 3:
-			return (43*voltage_perm[2])/14 - 2*voltage_perm[1];
-			break;
-		case 4:
-			return (57*voltage_perm[3])/14 - (43*voltage_perm[2])/14;
-			break;
-		case 5:
-			return 5*voltage_perm[4]-(57*voltage_perm[3])/14;
+		case 1: return voltage_perm[0];
+		case 2: return voltage_perm[1]-voltage_perm[0];
+		case 3: return voltage_perm[2]-voltage_perm[1];
+		case 4: return voltage_perm[3]-voltage_perm[2];
+		case 5: return voltage_perm[4]-voltage_perm[3];
 		default: return 0;
 	}
 }

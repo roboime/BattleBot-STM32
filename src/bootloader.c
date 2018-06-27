@@ -8,6 +8,10 @@
 #include "stm32f10x.h"
 #include <stdint.h>
 
+//#define DONT_UPLOAD_BOOTLOADER
+
+#ifndef DONT_UPLOAD_BOOTLOADER
+
 #define BOOTLOADER_TEXT __attribute__((section(".bootloader.text")))
 
 #pragma GCC optimize("Os")
@@ -59,6 +63,13 @@ void BOOTLOADER_TEXT __attribute__((noreturn)) do_bootloader()
 	// Wait for the number of pages to be sent
 	uint32_t read_pages = 0;
 	uint32_t num_pages = 0;
+
+	// Send upload enter bytes
+	for (int i = 0; i < 9; i++)
+	{
+		while (!(USART3->SR & USART_SR_TXE)) IWDG->KR = 0xAAAA;
+		USART3->DR = 0x66;
+	}
 
 	// Security sentinel
 	for (;;)
@@ -113,7 +124,7 @@ void BOOTLOADER_TEXT __attribute__((noreturn)) do_bootloader()
 		// Clear error flags
 		FLASH->SR = ~(FLASH_SR_PGERR | FLASH_SR_WRPRTERR | FLASH_SR_EOP);
 
-		__IO uint16_t* flash = (volatile uint16_t*)FLASH_BASE;
+		volatile uint16_t* flash = (volatile uint16_t*)0;
 		uint16_t* page_w = (uint16_t*)page;
 
 		// Erase FLASH page
@@ -167,6 +178,12 @@ void BOOTLOADER_TEXT __attribute__((noreturn)) do_bootloader()
 		do_bootloader();
 	}
 
+	// Wait to send everything on USART
+	while (!(USART3->SR & USART_SR_TC)) IWDG->KR = 0xAAAA;
+
+	// Lock the FLASH
+	FLASH->CR |= FLASH_CR_LOCK;
+
 	// Reset hardware (copied from NVIC_SystemReset())
 	__DSB();
 	SCB->AIRCR  = ((0x5FA << SCB_AIRCR_VECTKEY_Pos)      |
@@ -175,3 +192,5 @@ void BOOTLOADER_TEXT __attribute__((noreturn)) do_bootloader()
 	__DSB();
 	while(1);
 }
+
+#endif

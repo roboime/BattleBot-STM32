@@ -37,7 +37,7 @@ void usart_init()
     USART3->BRR = 45;
 
     // debug, remove me
-    //USART3->BRR = 625;
+    USART3->BRR = 625;
 
     /* 1 stop bit */
     USART3->CR2 = 0;

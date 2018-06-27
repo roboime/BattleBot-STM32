@@ -37,15 +37,23 @@ SOFTWARE.
 #include "util.h"
 #include "modules/recv.h"
 #include "modules/mvmt.h"
+#include "modules/esc.h"
 #include "modules/iwdg.h"
-#include "modules/spi.h"
 #include "modules/usart.h"
 #include "modules/esp.h"
+#include "modules/spi.h"
+#include "modules/sens.h"
+#include "modules/config.h"
 
 #include "context/context.h"
 
-const normalization_params vert_params = { 2049, 3009, 4032, 195, 0, -195 },
-	hor_params = { 2191, 3016, 3768, -195, 0, 195 };
+const normalization_params
+	vert_params = { 2049, 3009, 4032, 195, 0, -195 },
+	hor_params = { 2191, 3016, 3768, -195, 0, 195 },
+	wpn_params = { 2250, 3048, 3830, -512, 0, 512 };
+
+static void send_collected_data();
+static void poll_esp_commands();
 
 int main(void)
 {
@@ -59,16 +67,25 @@ int main(void)
 	// Initialize all primary modules
 	recv_init();
 	mvmt_init();
+	esc_init(0);
+
+	// Initialize the ESP-8266 module
+	usart_init();
+	esp_init();
+
+	// Initialize the sensors module
+	spi_init();
+	sens_init();
+
+	// Initialize the ADC and encoders
+	//enc_init();
+	//adc_init();
 
 	// Initialize the independent watchdog
-	//iwdg_init();
-
-	// Initialize the communications modules
-	//i2c_init();
-	//usart_init();
-	//esp_init();
+	iwdg_init();
 
 	// Pass the normalization parameters
+	recv_set_normalization_params(1, &wpn_params);
 	recv_set_normalization_params(2, &vert_params);
 	recv_set_normalization_params(3, &hor_params);
 
@@ -81,29 +98,102 @@ int main(void)
 	{
 		if (recv_new_frame())
 		{
-			//iwdg_reset();
+			iwdg_reset();
+			if (sens_ready()) sens_collect_data();
+			//adc_request_reading();
+
 			recv_update();
+			esc_update();
 
 			int y = recv_channel(2);
 			int x = recv_channel(3)*2/7;
 
+			int w = recv_channel(1);
+
 			mvmt_control(MOTOR_LEFT, y+x);
 			mvmt_control(MOTOR_RIGHT, y-x);
+			esc_control(w);
 
 			i++;
-			if (i % 16 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
+			if (i % 48 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
 
-			/*esp_recv_commands();
-			while (esp_new_commands())
-			{
-				uint8_t buffer[160];
-				uint32_t size = esp_next_command(buffer);
+			if (sens_ready())
+				while (sens_collecting());
 
-				if (size >= 1 && buffer[0] == 2) GPIOC->ODR ^= GPIO_ODR_ODR13;
-			}*/
+			send_collected_data();
+			poll_esp_commands();
 		}
 		//__WFI();
 	}
+}
+
+static void poll_esp_commands()
+{
+	esp_recv_commands();
+	while (esp_new_commands())
+	{
+		uint8_t buffer[160];
+		uint32_t size = esp_next_command(buffer);
+
+		if (size == 1)
+		{
+
+		}
+	}
+}
+
+static void send_collected_data()
+{
+	int32_vec3_t accel = sens_get_accel();
+	int32_vec3_t gyro = sens_get_angular();
+	int32_vec3_t mag = sens_get_mag();
+
+	int16_t flags = sens_ready();
+
+	int16_t data[] =
+	{
+		// Voltage on each cell
+		/*adc_get_voltage(0)*/0,        // 0: voltage 1
+		/*adc_get_voltage(1)*/1,        // 2: voltage 2
+		/*adc_get_voltage(2)*/2,        // 4: voltage 3
+		/*adc_get_voltage(3)*/3,        // 6: voltage 4
+		/*adc_get_voltage(4)*/4,        // 8: voltage 5
+
+		// Temperature on each motor
+		/*adc_get_temp(0)*/5,           // 10: left temp
+		/*adc_get_temp(1)*/6,           // 12: right temp
+		/*adc_get_temp(2)*/7,           // 14: weapon temp
+
+		// Current on each motor
+		sens_get_current(0),            // 16: left current
+		sens_get_current(1),            // 18: right current
+
+		// MPU data
+		accel.x, accel.y, accel.z,      // 20, 22, 24: accelerometer
+		gyro.x, gyro.y, gyro.z,         // 26, 28, 30: gyroscope
+		mag.x, mag.y, mag.z,            // 32, 34, 36: magnetometer
+
+		// Receiver raw data
+		recv_raw_channel(0),            // 38: receiver data channel 1
+		recv_raw_channel(1),            // 40: receiver data channel 2
+		recv_raw_channel(2),            // 42: receiver data channel 3
+		recv_raw_channel(3),            // 44: receiver data channel 4
+		recv_raw_channel(4),            // 46: receiver data channel 5
+		recv_raw_channel(5),            // 48: receiver data channel 6
+
+		// Encoder speed output,
+		/*enc_get_speed(0)*/25,         // 50: left speed by encoder
+		/*enc_get_speed(1)*/26,         // 52: right speed by encoder
+
+		// ESC raw output
+		esc_raw_output(),               // 54: ESC raw output
+
+		// Flags
+		flags                           // 56: flags
+	};
+
+	// Send this data through the ESP
+	esp_send(data, sizeof(data));
 }
 
 void __assert_func(const char *file, int line, const char *func, const char *failedexpr)

@@ -8,9 +8,9 @@
 #ifndef MODULES_ESC1_H_
 #define MODULES_ESC1_H_
 
-#define PWM_LOW 2500
-#define PWM_NEUTRAL 3000
-#define PWM_HIGH 3500
+#define PWM_LOW 2560
+#define PWM_NEUTRAL 3072
+#define PWM_HIGH 3584
 
 extern void esc1_update();
 extern void esc1_control(int p);

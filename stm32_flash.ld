@@ -44,7 +44,8 @@ _Min_Stack_Size = 0x100; /* required amount of stack */
 /* Specify the memory areas */
 MEMORY
 {
-  FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 64K
+  FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 62K
+  BOOTFLASH (rx)  : ORIGIN = 0x0800FC00, LENGTH = 1K
   RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 20K
   MEMORY_B1 (rx)  : ORIGIN = 0x60000000, LENGTH = 0K
 }
@@ -115,18 +116,6 @@ SECTIONS
     PROVIDE_HIDDEN (__fini_array_end = .);
   } >FLASH
 
-  /* Bootloader can replace RAM */
-  .bootloader.text :
-  {
-  	/* Go to the last page */
-  	. = ORIGIN(FLASH) + LENGTH(FLASH) - 1024;
-  	__bootloader_begin = .;
-  	KEEP(*bootloader.o(.bootloader.text))
-  	KEEP(*bootloader.o(.bootloader.text*))
-  	. = ALIGN(1024);
-  	__bootloader_end = .;
-  } >FLASH
-
   /* used by the startup to initialize data */
   _sidata = LOADADDR(.data);
 
@@ -168,6 +157,16 @@ SECTIONS
     . = . + _Min_Stack_Size;
     . = ALIGN(4);
   } >RAM
+
+  .bootloader.text :
+  {
+  	. = ALIGN(4);
+  	__bootloader_begin = .;
+  	KEEP(*bootloader.o(.bootloader.text))
+  	KEEP(*bootloader.o(.bootloader.text*))
+  	. = ALIGN(4);
+  	__bootloader_end = .;
+  } >BOOTFLASH
 
   /* MEMORY_bank1 section, code must be located here explicitly            */
   /* Example: extern int foo(void) __attribute__ ((section (".mb1text"))); */

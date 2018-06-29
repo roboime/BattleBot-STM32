@@ -99,7 +99,7 @@ int main(void)
 		if (recv_new_frame())
 		{
 			iwdg_reset();
-			if (sens_ready()) sens_collect_data();
+			//if (sens_ready()) sens_collect_data();
 			//adc_request_reading();
 
 			recv_update();
@@ -110,18 +110,18 @@ int main(void)
 
 			int w = recv_channel(1);
 
-			mvmt_control(MOTOR_LEFT, y+x);
-			mvmt_control(MOTOR_RIGHT, y-x);
+			mvmt_control(MOTOR_LEFT, 100);
+			mvmt_control(MOTOR_RIGHT, 100);
 			esc_control(w);
 
 			i++;
-			if (i % 48 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
+			if (i % 16 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
 
-			if (sens_ready())
-				while (sens_collecting());
+			//if (sens_ready())
+				//while (sens_collecting());
 
-			send_collected_data();
-			poll_esp_commands();
+			//send_collected_data();
+			//poll_esp_commands();
 		}
 		//__WFI();
 	}

@@ -9,8 +9,7 @@
 #define MODULES_SENS_H_
 
 #include <stdint.h>
-
-typedef struct { int32_t x, y, z; } int32_vec3_t;
+#include "vectors.h"
 
 /**
  * Initializes the sensors module
@@ -56,10 +55,5 @@ int32_vec3_t sens_get_angular();
  * Returns magnetic field
  */
 int32_vec3_t sens_get_mag();
-
-/*
- * Returns current from a motor
- */
-int32_t sens_get_current(uint32_t motor);
 
 #endif /* MODULES_SENS_H_ */

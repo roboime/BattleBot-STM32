@@ -10,8 +10,8 @@
 #include <stdint.h>
 
 #define ADC_INTERRUPT_PRIORITY 4
-int16_t voltage_buffer[8];
-int16_t voltage_perm[8];
+int16_t voltage_buffer[11];
+int16_t voltage_perm[10];
 
 void adc_init()
 {
@@ -23,8 +23,8 @@ void adc_init()
     ADC1->CR2 = ADC_CR2_DMA | (7 << 17);							//habilita o DMA
 
     ADC1->SQR3 = 0 | (1 << 5) | (2 << 10) | (3 << 15) | (4 << 20) | (5 << 25);
-    ADC1->SQR2 = 6 | (7 << 5);
-    ADC1->SQR1 = 8 << 20;											//define como 8 o numero de conversoes
+    ADC1->SQR2 = 6 | (7 << 5) | (8 << 10) | (9 << 15);
+    ADC1->SQR1 = 10 << 20;											//define como 8 o numero de conversoes
 
     ADC1->CR2 |= ADC_CR2_ADON;
 
@@ -36,9 +36,6 @@ void adc_init()
 
     DMA1_Channel1->CCR  =  DMA_CCR1_MINC | DMA_CCR1_TCIE | (3 << 12) | (1<<8) | (1<<10);
 	DMA1_Channel1->CPAR = (uint32_t)&ADC1->DR;
-	DMA1_Channel1->CMAR = (uint32_t)voltage_buffer;
-	DMA1_Channel1->CNDTR = 9;
-	DMA1_Channel1->CCR |= DMA_CCR1_EN;
 
 	NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 	NVIC_SetPriority(DMA1_Channel1_IRQn, ADC_INTERRUPT_PRIORITY);
@@ -46,23 +43,32 @@ void adc_init()
 
 void adc_request_reading()
 {
-	DMA1_Channel1->CMAR = (uint32_t)voltage_buffer;
-	DMA1_Channel1->CNDTR = 8;
-	DMA1_Channel1->CCR |= DMA_CCR1_EN;
+	ADC1->CR2 |= ADC_CR2_SWSTART;
 	ADC1->CR2 |= ADC_CR2_ADON;
+	while (ADC1->CR2 & ADC_CR2_SWSTART);
+
+	DMA1_Channel1->CMAR = (uint32_t)voltage_buffer;
+	DMA1_Channel1->CNDTR = 11;
+	DMA1_Channel1->CCR |= DMA_CCR1_EN;
 }
 
 uint32_t adc_get_voltage(uint32_t cell)
 {
+	uint32_t result;
+
+	__disable_irq();
 	switch(cell)
 	{
-		case 1: return voltage_perm[0];
-		case 2: return voltage_perm[1]-voltage_perm[0];
-		case 3: return voltage_perm[2]-voltage_perm[1];
-		case 4: return voltage_perm[3]-voltage_perm[2];
-		case 5: return voltage_perm[4]-voltage_perm[3];
+		case 1: result = voltage_perm[0]; break;
+		case 2: result = voltage_perm[1] - voltage_perm[0]; break;
+		case 3: result = voltage_perm[2] - voltage_perm[1]; break;
+		case 4: result = voltage_perm[3] - voltage_perm[2]; break;
+		case 5: result = voltage_perm[4] - voltage_perm[3]; break;
 		default: return 0;
 	}
+	__enable_irq();
+
+	return result;
 }
 
 uint32_t adc_get_temp(uint32_t id)
@@ -78,7 +84,7 @@ void DMA1_Channel1_IRQHandler()
 		DMA1_Channel1->CCR &= ~DMA_CCR1_EN;
 		DMA1->IFCR = DMA_IFCR_CTCIF1 | DMA_IFCR_CGIF1;
 
-		for(int i = 0; i < 9; i++)
-			voltage_perm[i] = voltage_buffer[i];
+		for(int i = 0; i < 10; i++)
+			voltage_perm[i] = voltage_buffer[i+1];
 	}
 }

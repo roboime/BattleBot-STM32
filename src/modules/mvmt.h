@@ -14,4 +14,6 @@
 void mvmt_init();
 void mvmt_control(int motor, int p);
 
+int mvmt_require_ctl();
+
 #endif /* MODULES_MVMT_H_ */

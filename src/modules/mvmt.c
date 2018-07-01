@@ -9,6 +9,9 @@
 #include "util.h"
 
 #include "mvmt.h"
+#define CONTROL_PRIORITY 5
+
+static volatile int require = 0;
 
 void mvmt_init()
 {
@@ -21,17 +24,21 @@ void mvmt_init()
 
 	TIM1->PSC =  17;
 	TIM1->ARR = 199;
+	TIM1->RCR =  19;
 	TIM1->EGR = TIM_EGR_UG;
 
 	TIM1->CCMR1 = (6 << 4) | (6<<12);
 	TIM1->CCMR2 = (6 << 4) | (6<<12);
 
 	TIM1->CCER |= TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E;
+	TIM1->DIER |= TIM_DIER_UIE;
 
 	TIM1->BDTR  |= TIM_BDTR_MOE;
 
 	TIM1->CR1 |= TIM_CR1_CEN;
 
+	NVIC_EnableIRQ(TIM1_UP_IRQn);
+	NVIC_SetPriority(TIM1_UP_IRQn, CONTROL_PRIORITY);
 }
 
 void mvmt_control(int motor, int p)
@@ -52,8 +59,28 @@ void mvmt_control(int motor, int p)
         *cha = 0;
         *chb = -p;
     }
-	else{
+	else
+	{
         *cha = 0;
         *chb = 0;
     }
+}
+
+void TIM1_UP_IRQHandler()
+{
+	if (TIM1->SR & TIM_SR_UIF)
+	{
+		TIM1->SR = ~TIM_SR_UIF;
+		require = 1;
+	}
+}
+
+int mvmt_require_ctl()
+{
+	__disable_irq();
+	int v = require;
+	if (v) require = 0;
+	__enable_irq();
+
+	return v;
 }

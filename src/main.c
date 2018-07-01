@@ -55,6 +55,12 @@ const normalization_params
 static void send_collected_data();
 static void poll_esp_commands();
 
+static int32_vec3_t accum_accel;
+static int32_vec3_t accum_adjusted_accel;
+static int32_vec3_t accum_gyro;
+static int32_vec3_t accum_mag;
+static uint32_t num_samples;
+
 int main(void)
 {
 	// Enable all GPIO ports so the other functions don't need to
@@ -76,10 +82,12 @@ int main(void)
 	// Initialize the sensors module
 	spi_init();
 	sens_init();
+	while (sens_ready());
+	sens_calibration_routine();
 
 	// Initialize the ADC and encoders
 	//enc_init();
-	//adc_init();
+	adc_init();
 
 	// Initialize the independent watchdog
 	iwdg_init();
@@ -88,6 +96,12 @@ int main(void)
 	recv_set_normalization_params(1, &wpn_params);
 	recv_set_normalization_params(2, &vert_params);
 	recv_set_normalization_params(3, &hor_params);
+
+	// Initialize the accumulated data
+	accum_accel.x = accum_accel.y = accum_accel.z = 0;
+	accum_gyro.x = accum_gyro.y = accum_gyro.z = 0;
+	accum_mag.x = accum_mag.y = accum_mag.z = 0;
+	num_samples = 0;
 
 	// Enable reception of signal data
 	recv_enable();
@@ -99,31 +113,51 @@ int main(void)
 		if (recv_new_frame())
 		{
 			iwdg_reset();
-			//if (sens_ready()) sens_collect_data();
-			//adc_request_reading();
+			adc_request_reading();
 
 			recv_update();
 			esc_update();
 
 			int y = recv_channel(2);
-			int x = recv_channel(3)*2/7;
+			int x = recv_channel(3);
 
 			int w = recv_channel(1);
 
-			mvmt_control(MOTOR_LEFT, 100);
-			mvmt_control(MOTOR_RIGHT, 100);
+			//control_input_recv_data(x, y);
 			esc_control(w);
 
 			i++;
 			if (i % 16 == 0) GPIOC->ODR ^= GPIO_ODR_ODR13;
 
-			//if (sens_ready())
-				//while (sens_collecting());
-
-			//send_collected_data();
-			//poll_esp_commands();
+			send_collected_data();
+			poll_esp_commands();
 		}
 		//__WFI();
+
+		// 1 kHz control feedback loop
+		/*if (mvmt_require_ctl())
+		{
+			// Collect sensor data
+			if (sens_ready()) sens_collect_data();
+			while (sens_collecting());
+
+			int32_vec3_t accel = sens_get_accel();
+			int32_vec3_t gyro = sens_get_angular();
+
+			// Accumulate sensor data for display
+			accum_accel = vec_add32(accum_accel, accel);
+			accum_gyro = vec_add32(accum_gyro, gyro);
+
+			// Input data for the control loop
+			control_input_motion(accel, gyro);
+			control_recv_update();
+
+			// Set the output data
+			mvmt_control(MOTOR_LEFT, control_input_left());
+			mvmt_control(MOTOR_RIGHT, control_input_right());
+
+			num_samples++;
+		}*/
 	}
 }
 
@@ -139,25 +173,35 @@ static void poll_esp_commands()
 		{
 
 		}
+		else if (size == 8)
+		{
+			// Easter-egg: joystick control
+		}
 	}
 }
 
 static void send_collected_data()
 {
-	int32_vec3_t accel = sens_get_accel();
-	int32_vec3_t gyro = sens_get_angular();
-	int32_vec3_t mag = sens_get_mag();
+	int32_vec3_t accel = accum_accel;
+	int32_vec3_t gyro = accum_gyro;
+	int32_vec3_t mag = accum_mag;
+
+	if (num_samples > 0)
+	{
+		accel.x /= num_samples, accel.y /= num_samples, accel.z /= num_samples;
+		gyro.x /= num_samples, gyro.y /= num_samples, gyro.z /= num_samples;
+	}
 
 	int16_t flags = sens_ready();
 
 	int16_t data[] =
 	{
 		// Voltage on each cell
-		/*adc_get_voltage(0)*/0,        // 0: voltage 1
-		/*adc_get_voltage(1)*/1,        // 2: voltage 2
-		/*adc_get_voltage(2)*/2,        // 4: voltage 3
-		/*adc_get_voltage(3)*/3,        // 6: voltage 4
-		/*adc_get_voltage(4)*/4,        // 8: voltage 5
+		adc_get_voltage(1),        // 0: voltage 1
+		adc_get_voltage(2),        // 2: voltage 2
+		adc_get_voltage(3),        // 4: voltage 3
+		adc_get_voltage(4),        // 6: voltage 4
+		adc_get_voltage(5),        // 8: voltage 5
 
 		// Temperature on each motor
 		/*adc_get_temp(0)*/5,           // 10: left temp
@@ -165,13 +209,17 @@ static void send_collected_data()
 		/*adc_get_temp(2)*/7,           // 14: weapon temp
 
 		// Current on each motor
-		sens_get_current(0),            // 16: left current
-		sens_get_current(1),            // 18: right current
+		/*adc_get_current(0)*/8,        // 16: left current
+		/*adc_get_current(1)*/9,        // 18: right current
 
 		// MPU data
 		accel.x, accel.y, accel.z,      // 20, 22, 24: accelerometer
 		gyro.x, gyro.y, gyro.z,         // 26, 28, 30: gyroscope
-		mag.x, mag.y, mag.z,            // 32, 34, 36: magnetometer
+
+		// Encoder speed output
+		/*enc_get_speed(0)*/16,         // 32: left speed by encoder
+		/*enc_get_speed(1)*/17,         // 34: right speed by encoder
+		0,                              // dummy
 
 		// Receiver raw data
 		recv_raw_channel(0),            // 38: receiver data channel 1
@@ -180,10 +228,6 @@ static void send_collected_data()
 		recv_raw_channel(3),            // 44: receiver data channel 4
 		recv_raw_channel(4),            // 46: receiver data channel 5
 		recv_raw_channel(5),            // 48: receiver data channel 6
-
-		// Encoder speed output,
-		/*enc_get_speed(0)*/25,         // 50: left speed by encoder
-		/*enc_get_speed(1)*/26,         // 52: right speed by encoder
 
 		// ESC raw output
 		esc_raw_output(),               // 54: ESC raw output
@@ -194,6 +238,12 @@ static void send_collected_data()
 
 	// Send this data through the ESP
 	esp_send(data, sizeof(data));
+
+	// Reset accumulated IMU data
+	accum_accel.x = accum_accel.y = accum_accel.z = 0;
+	accum_gyro.x = accum_gyro.y = accum_gyro.z = 0;
+	accum_mag.x = accum_mag.y = accum_mag.z = 0;
+	num_samples = 0;
 }
 
 void __assert_func(const char *file, int line, const char *func, const char *failedexpr)

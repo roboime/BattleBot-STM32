@@ -9,7 +9,7 @@
 #define CONTROL_H_
 
 #include <stdint.h>
-#include "vectors.h"
+#include "math/vectors.h"
 
 void control_input_motion(int32_vec3_t accel, int32_vec3_t gyro);
 

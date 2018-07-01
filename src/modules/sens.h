@@ -9,7 +9,7 @@
 #define MODULES_SENS_H_
 
 #include <stdint.h>
-#include "vectors.h"
+#include "math/vectors.h"
 
 /**
  * Initializes the sensors module

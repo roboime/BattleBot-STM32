@@ -41,6 +41,8 @@ SOFTWARE.
 #include "modules/iwdg.h"
 #include "modules/usart.h"
 #include "modules/esp.h"
+#include "modules/enc.h"
+#include "modules/adc.h"
 #include "modules/spi.h"
 #include "modules/sens.h"
 #include "modules/config.h"
@@ -86,7 +88,7 @@ int main(void)
 	sens_calibration_routine();
 
 	// Initialize the ADC and encoders
-	//enc_init();
+	enc_init();
 	adc_init();
 
 	// Initialize the independent watchdog
@@ -117,6 +119,7 @@ int main(void)
 
 			recv_update();
 			esc_update();
+			enc_update();
 
 			int y = recv_channel(2);
 			int x = recv_channel(3);
@@ -217,8 +220,8 @@ static void send_collected_data()
 		gyro.x, gyro.y, gyro.z,         // 26, 28, 30: gyroscope
 
 		// Encoder speed output
-		/*enc_get_speed(0)*/16,         // 32: left speed by encoder
-		/*enc_get_speed(1)*/17,         // 34: right speed by encoder
+		enc_speed(MOTOR_LEFT),          // 32: left speed by encoder
+		enc_speed(MOTOR_RIGHT),         // 34: right speed by encoder
 		0,                              // dummy
 
 		// Receiver raw data

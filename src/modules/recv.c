@@ -227,6 +227,17 @@ uint32_t recv_num_channels()
 void recv_set_normalization_params(uint32_t ch, const normalization_params* params)
 {
 	memcpy(normalization_parameters+ch, params, sizeof(normalization_params));
+
+	if (normalization_parameters[ch].in_high < normalization_parameters[ch].in_low)
+	{
+		int32_t tmp = normalization_parameters[ch].in_high;
+		normalization_parameters[ch].in_high = normalization_parameters[ch].in_low;
+		normalization_parameters[ch].in_low = tmp;
+
+		tmp = normalization_parameters[ch].out_high;
+		normalization_parameters[ch].out_high = normalization_parameters[ch].out_low;
+		normalization_parameters[ch].out_low = tmp;
+	}
 }
 
 int32_t recv_channel(uint32_t ch)

@@ -9,6 +9,7 @@
 #include "sens.h"
 #include "sens-regs.h"
 #include "spi.h"
+#include "config.h"
 
 #include <stdbool.h>
 
@@ -69,6 +70,50 @@ static volatile int32_vec3_t prev_gyro;
 #define ACCEL_FS_SEL MPU9250_ACCEL_FS_SEL_16G
 #define GYRO_FS_SEL MPU9250_GYRO_FS_SEL_2000DPS
 
+static void calibrate_from_config()
+{
+	/* If calibration has not been done yet, skip this */
+	if (!config_get_flag(config_flag_mpu_cal_done)) return;
+
+	config_struct* cfg = config_cur();
+
+	/* Build gyroscope bias values (you need to multiply by 2^FS_SEL/4) */
+	int16_t gyro_bias[4];
+	gyro_bias[0] = 0x1300;
+	gyro_bias[1] = cfg->gyro_cal_x;
+	gyro_bias[2] = cfg->gyro_cal_y;
+	gyro_bias[3] = cfg->gyro_cal_z;
+
+	/* Write the gyroscope bias values */
+	write_regs((const uint8_t*)gyro_bias+1, sizeof(gyro_bias)-1);
+
+	/* Read the original accelerometer bias values */
+	int32_t accel_bias[3] = { 0, 0, 0 };
+	for (int i = 0; i < 3; i++)
+	{
+		int16_t orig_accel_bias;
+		read_regs(0x77 + 3*i, &orig_accel_bias, sizeof(int16_t));
+		accel_bias[i] = __REVSH(orig_accel_bias);
+	}
+
+	/* Update the accelerometer bias */
+	accel_bias[0] -= cfg->acc_cal_x;
+	accel_bias[1] -= cfg->acc_cal_y;
+	accel_bias[2] -= cfg->acc_cal_z;
+
+	/* Write back the accelerometer values */
+	for (int i = 0; i < 3; i++)
+	{
+		int16_t writeback_accel_bias[2];
+		writeback_accel_bias[0] = 0x7700 + 0x300*i;
+		writeback_accel_bias[1] = __REVSH((int16_t)accel_bias[i]);
+		write_regs((const uint8_t*)writeback_accel_bias + 1, sizeof(writeback_accel_bias)-1);
+	}
+
+	/* Done calibration */
+	calibration_state = 0;
+}
+
 /* The real init thread */
 static void sens_init_thread(void* ud)
 {
@@ -93,6 +138,9 @@ static void sens_init_thread(void* ud)
 	   MPU9250_SMPDIV, MPU9250_CONFIG, MPU9250_GYRO_CONFIG, MPU9250_ACCEL_CONFIG, MPU9250_ACCEL_CONFIG2 */
 	WRITE_REGISTERS(MPU9250_SMPDIV, 0, MPU9250_GYRO_DLPF_92 | 0x40,
 		GYRO_FS_SEL, ACCEL_FS_SEL, MPU9250_ACCEL_DLPF_92);
+
+	/* Load calibration registers */
+	calibrate_from_config();
 
 	/* Initialization done */
 	init_state = 2;
@@ -198,41 +246,22 @@ static void sens_calibration_thread(void* ud)
 	if (avg_accel.z > 0) avg_accel.z -= ACCEL_GRAVITY_UNIT;
 	else avg_accel.z += ACCEL_GRAVITY_UNIT;
 
-	/* Build gyroscope bias values (you need to multiply by 2^FS_SEL/4) */
-	int16_t gyro_bias[4];
-	gyro_bias[0] = 0x1300;
-	gyro_bias[1] = __REVSH((int16_t)((-avg_gyro.x << (GYRO_FS_SEL >> 3)) >> 2));
-	gyro_bias[2] = __REVSH((int16_t)((-avg_gyro.y << (GYRO_FS_SEL >> 3)) >> 2));
-	gyro_bias[3] = __REVSH((int16_t)((-avg_gyro.z << (GYRO_FS_SEL >> 3)) >> 2));
+	config_struct* cfg = config_cur();
 
-	/* Write the gyroscope bias values */
-	write_regs((const uint8_t*)gyro_bias+1, sizeof(gyro_bias)-1);
+	/* Store the gyroscope bias in the config file */
+	cfg->gyro_cal_x = __REVSH((int16_t)((-avg_gyro.x << (GYRO_FS_SEL >> 3)) >> 2));
+	cfg->gyro_cal_y = __REVSH((int16_t)((-avg_gyro.y << (GYRO_FS_SEL >> 3)) >> 2));
+	cfg->gyro_cal_z = __REVSH((int16_t)((-avg_gyro.z << (GYRO_FS_SEL >> 3)) >> 2));
 
-	/* Read the original accelerometer bias values */
-	int32_t accel_bias[3];
-	for (int i = 0; i < 3; i++)
-	{
-		int16_t orig_accel_bias;
-		read_regs(0x77 + 3*i, &orig_accel_bias, sizeof(int16_t));
-		accel_bias[i] = __REVSH(orig_accel_bias);
-	}
+	/* Store the accelerometer in the config file */
+	cfg->acc_cal_x = ((avg_accel.x << (ACCEL_FS_SEL >> 3)) >> 3) & ~1;
+	cfg->acc_cal_y = ((avg_accel.y << (ACCEL_FS_SEL >> 3)) >> 3) & ~1;
+	cfg->acc_cal_z = ((avg_accel.z << (ACCEL_FS_SEL >> 3)) >> 3) & ~1;
 
-	/* Update the accelerometer bias */
-	accel_bias[0] -= ((avg_accel.x << (ACCEL_FS_SEL >> 3)) >> 2) & ~1;
-	accel_bias[1] -= ((avg_accel.y << (ACCEL_FS_SEL >> 3)) >> 2) & ~1;
-	accel_bias[2] -= ((avg_accel.z << (ACCEL_FS_SEL >> 3)) >> 2) & ~1;
+	/* Set that calibration has been done */
+	config_set_flag(config_flag_mpu_cal_done, 1);
 
-	/* Write back the accelerometer values */
-	for (int i = 0; i < 3; i++)
-	{
-		int16_t writeback_accel_bias[2];
-		writeback_accel_bias[0] = 0x7700 + 0x300*i;
-		writeback_accel_bias[1] = __REVSH((int16_t)accel_bias[i]);
-		write_regs((const uint8_t*)writeback_accel_bias + 1, sizeof(writeback_accel_bias)-1);
-	}
-
-	/* Done calibration */
-	calibration_state = 0;
+	calibrate_from_config();
 }
 
 void sens_calibration_routine()
@@ -252,6 +281,20 @@ uint8_t sens_calibration_done()
 int32_vec3_t sens_get_accel()
 {
 	return cur_accel;
+}
+
+int32_vec3_t sens_get_adjusted_accel()
+{
+	int64_vec3_t gyro = vec_to64(cur_gyro);
+	int64_vec3_t pgyro = vec_to64(prev_gyro);
+	int64_vec3_t rpos = vec_to64(config_cur()->rpos);
+
+	const int64_t k1 = 285954744LL, k2 = 9748LL;
+	int32_vec3_t euler = vec_upper_half(vec_mul64(k1, vec_cross64(vec_sub64(gyro, pgyro), rpos)));
+	int32_vec3_t centripete = vec_upper_half(vec_mul64(k2, vec_cross64(gyro, vec_cross64(gyro, rpos))));
+	centripete = vec_shr32(vec_add32(centripete, (int32_vec3_t){ 16, 16, 16 }), 5);
+
+	return vec_sub32(cur_accel, vec_add32(euler, centripete));
 }
 
 /* Gyroscope */

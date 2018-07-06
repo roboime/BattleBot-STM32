@@ -39,4 +39,12 @@ int64_vec3_t vec_div64(int64_vec3_t v, int64_t s);
 int32_vec3_t vec_cross32(int32_vec3_t v1, int32_vec3_t v2);
 int64_vec3_t vec_cross64(int64_vec3_t v1, int64_vec3_t v2);
 
+int32_vec3_t vec_shl32(int32_vec3_t v, uint8_t sh);
+int64_vec3_t vec_shl64(int64_vec3_t v, uint8_t sh);
+int32_vec3_t vec_shr32(int32_vec3_t v, uint8_t sh);
+int64_vec3_t vec_shr64(int64_vec3_t v, uint8_t sh);
+
+int64_t vec_sqnorm32(int32_vec3_t v);
+int32_t vec_norm32(int32_vec3_t v);
+
 #endif /* VECTORS_H_ */

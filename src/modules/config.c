@@ -7,6 +7,7 @@
 
 #include "stm32f10x.h"
 #include "config.h"
+#include "util.h"
 
 #include <string.h>
 
@@ -17,9 +18,8 @@ static config_struct cur;
 
 static void config_init()
 {
+	memset(&cur, 0, sizeof(cur));
 	cur.id = SAVED_ID;
-
-	// Do initialization here
 }
 
 void config_load()
@@ -31,6 +31,16 @@ void config_load()
 config_struct* config_cur()
 {
 	return &cur;
+}
+
+void config_set_flag(config_flag flag, int32_t val)
+{
+	BIT_BANDING_SRAM(cur.flags, flag) = val;
+}
+
+int32_t config_get_flag(config_flag flag)
+{
+	return BIT_BANDING_SRAM(cur.flags, flag);
 }
 
 //

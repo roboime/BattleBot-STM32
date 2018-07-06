@@ -40,4 +40,6 @@ int64_quat_t quat_muls64(int64_t s, int64_quat_t q);
 int32_quat_t quat_conj32(int32_quat_t q);
 int64_quat_t quat_conj64(int64_quat_t q);
 
+int64_t quat_sqnorm32()
+
 #endif /* QUATERNIONS_H_ */

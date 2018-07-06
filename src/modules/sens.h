@@ -45,6 +45,7 @@ uint8_t sens_collecting();
  * Returns acceleration
  */
 int32_vec3_t sens_get_accel();
+int32_vec3_t sens_get_adjusted_accel();
 
 /**
  * Returns angular velocity

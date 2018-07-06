@@ -12,6 +12,7 @@
 #include "math/vectors.h"
 
 void control_input_motion(int32_vec3_t accel, int32_vec3_t gyro);
+void control_input_enc(int32_t enc_left, int32_t enc_right);
 
 void control_input_recv_data(int recv_x, int recv_y);
 void control_recv_update();
